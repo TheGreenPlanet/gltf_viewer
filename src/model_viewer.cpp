@@ -33,7 +33,7 @@ struct Context {
     GLuint program;
     GLuint emptyVAO;
     float elapsedTime;
-    std::string gltfFilename = "triangle.gltf";
+    std::string gltfFilename = "cube_rgb.gltf";
     // Add more variables here...
 };
 
@@ -85,9 +85,11 @@ void draw_scene(Context &ctx)
         const gltf::Drawable &drawable = ctx.drawables[node.mesh];
 
         // Define per-object uniforms
-        // ...
-
+        glm::mat4 view = glm::mat4(ctx.trackball.orient);
+        
         // Draw object
+        glUniformMatrix4fv(glGetUniformLocation(ctx.program, "u_view"), 1, GL_FALSE, &view[0][0]);
+
         glBindVertexArray(drawable.vao);
         glDrawElements(GL_TRIANGLES, drawable.indexCount, drawable.indexType,
                        (GLvoid *)(intptr_t)drawable.indexByteOffset);
