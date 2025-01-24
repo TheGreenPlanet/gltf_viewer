@@ -15,6 +15,6 @@ out vec3 v_color;
 
 void main()
 {
-    gl_Position = vec4(-a_position.xyz, 1.0);
-    v_color = a_color;
+    gl_Position = vec4(a_position.xyz*2*sin(2*u_time), 1.0);
+    v_color = vec3(a_color.xy, a_color.z*2*sin(2*u_time));
 }
