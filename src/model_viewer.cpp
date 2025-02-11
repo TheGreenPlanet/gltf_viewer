@@ -33,7 +33,8 @@ struct Context {
     GLuint program;
     GLuint emptyVAO;
     float elapsedTime;
-    std::string gltfFilename = "cube_rgb.gltf";
+    std::string gltfFilename = "armadillo.gltf";
+    glm::vec3 backgroundColor = glm::vec3(0.0f, 0.0f, 0.0f);
     // Add more variables here...
 };
 
@@ -107,7 +108,8 @@ void do_rendering(Context &ctx)
     cg::reset_gl_render_state();
 
     // Clear color and depth buffers
-    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    
+    glClearColor(ctx.backgroundColor.r, ctx.backgroundColor.g, ctx.backgroundColor.b, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     draw_scene(ctx);
@@ -215,7 +217,7 @@ int main(int argc, char *argv[])
     ImGui::CreateContext();
     ImGui_ImplGlfw_InitForOpenGL(ctx.window, false /*do not install callbacks*/);
     ImGui_ImplOpenGL3_Init("#version 330" /*GLSL version*/);
-
+    
     // Initialize rendering
     glGenVertexArrays(1, &ctx.emptyVAO);
     glBindVertexArray(ctx.emptyVAO);
@@ -231,6 +233,12 @@ int main(int argc, char *argv[])
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         // ImGui::ShowDemoWindow();
+
+        ImGui::Begin("Model viewer");
+        ImGui::ColorEdit3("Background color", &ctx.backgroundColor[0]);
+
+        ImGui::End();
+
         do_rendering(ctx);
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
