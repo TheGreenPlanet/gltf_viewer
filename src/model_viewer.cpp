@@ -36,6 +36,10 @@ struct Context {
     std::string gltfFilename = "armadillo.gltf";
     glm::vec3 backgroundColor = glm::vec3(0.0f, 0.0f, 0.0f);
     // Add more variables here...
+    float modelScaleValue = 1.0f;
+    glm::vec3 modelTranslationValue = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 modelAxisValue = glm::vec3(0.0f, 1.0f, 0.0f);
+    float modelAngleValue = 0.0f;
 };
 
 // Returns the absolute path to the src/shader directory
@@ -80,6 +84,9 @@ void draw_scene(Context &ctx)
     glUniform1f(glGetUniformLocation(ctx.program, "u_time"), ctx.elapsedTime);
     // ...
 
+
+
+
     // Draw scene
     for (unsigned i = 0; i < ctx.asset.nodes.size(); ++i) {
         const gltf::Node &node = ctx.asset.nodes[i];
@@ -87,9 +94,20 @@ void draw_scene(Context &ctx)
 
         // Define per-object uniforms
         glm::mat4 view = glm::mat4(ctx.trackball.orient);
-        
+        view = view * glm::lookAt(glm::vec3(2.0f, 0.0f, 0.0f), glm::vec3(0.0f), glm::vec3(0,0,1));
+        glm::mat4 projection =  glm::perspective(glm::radians(65.0f), (float)ctx.width / (float)ctx.height, 0.1f, 100.0f);
+        glm::mat4 model = glm::mat4(1.0f);
+
+        // Apply model transformation
+        model = glm::scale(model, glm::vec3(node.scale));
+        model = glm::translate(model, node.translation);
+        model = glm::rotate(model, node.rotation.w, glm::vec3(node.rotation.x, node.rotation.y, node.rotation.z));
+            
         // Draw object
         glUniformMatrix4fv(glGetUniformLocation(ctx.program, "u_view"), 1, GL_FALSE, &view[0][0]);
+        glUniformMatrix4fv(glGetUniformLocation(ctx.program, "u_projection"), 1, GL_FALSE, &projection[0][0]);
+        glUniformMatrix4fv(glGetUniformLocation(ctx.program, "u_model"), 1, GL_FALSE, &model[0][0]);
+
 
         glBindVertexArray(drawable.vao);
         glDrawElements(GL_TRIANGLES, drawable.indexCount, drawable.indexType,
@@ -236,6 +254,12 @@ int main(int argc, char *argv[])
 
         ImGui::Begin("Model viewer");
         ImGui::ColorEdit3("Background color", &ctx.backgroundColor[0]);
+
+        ImGui::Text("Model transformation");
+        ImGui::SliderFloat("Scale", &ctx.modelScaleValue, 0.0f, 2.0f);
+        ImGui::SliderFloat3("Translation", &ctx.modelTranslationValue[0], -10.0f, 10.0f);
+        ImGui::SliderFloat("Rotation Angle", &ctx.modelAngleValue, -3.14f, 3.14f);
+        ImGui::SliderFloat3("Rotation Axis", &ctx.modelAxisValue[0], -1.0f, 1.0f);
 
         ImGui::End();
 

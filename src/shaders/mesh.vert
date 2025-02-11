@@ -4,6 +4,8 @@
 // Uniform constants
 uniform float u_time;
 uniform mat4 u_view;
+uniform mat4 u_projection;
+uniform mat4 u_model;
 
 // Vertex inputs (attributes from vertex buffers)
 layout(location = 0) in vec4 a_position;
@@ -16,7 +18,9 @@ out vec3 v_color;
 
 void main()
 {
-    gl_Position = u_view * vec4(a_position.xyz, 1.0);
+    // Part 2 (Why?): Nothing changed because we're multiplying with the identity matrices
+    
+    gl_Position = u_projection * u_view * u_model * a_position;
     v_color = 0.5 * a_normal + 0.5; // maps the normal direction to an RGB color
     //v_color = vec3(a_color.xy, a_color.z*2*sin(2*u_time));
 }
