@@ -38,8 +38,11 @@ struct Context {
     // Add more variables here...
     float modelScaleValue = 1.0f;
     glm::vec3 modelTranslationValue = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::vec3 modelAxisValue = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 modelAxisValue = glm::vec3(0.0f, 0.0f, 0.0f);
     float modelAngleValue = 0.0f;
+
+    glm::vec3 diffuseColor = glm::vec3(0.5f, 0.5f, 0.5f);
+    glm::vec3 lightPosition = glm::vec3(1.0f, 1.0f, 1.0f);
 };
 
 // Returns the absolute path to the src/shader directory
@@ -82,8 +85,9 @@ void draw_scene(Context &ctx)
 
     // Define per-scene uniforms
     glUniform1f(glGetUniformLocation(ctx.program, "u_time"), ctx.elapsedTime);
+    
     // ...
-
+    
 
 
 
@@ -108,6 +112,10 @@ void draw_scene(Context &ctx)
         glUniformMatrix4fv(glGetUniformLocation(ctx.program, "u_projection"), 1, GL_FALSE, &projection[0][0]);
         glUniformMatrix4fv(glGetUniformLocation(ctx.program, "u_model"), 1, GL_FALSE, &model[0][0]);
 
+        glUniform3fv(glGetUniformLocation(ctx.program, "u_diffuseColor"), 1, &ctx.diffuseColor[0]);
+        glUniform3fv(glGetUniformLocation(ctx.program, "u_lightPosition"), 1, &ctx.lightPosition[0]);
+
+        
 
         glBindVertexArray(drawable.vao);
         glDrawElements(GL_TRIANGLES, drawable.indexCount, drawable.indexType,
@@ -253,13 +261,27 @@ int main(int argc, char *argv[])
         // ImGui::ShowDemoWindow();
 
         ImGui::Begin("Model viewer");
+
+        ImGui::Text("Model");
+        for (auto &node : ctx.asset.nodes) {
+            ImGui::Text("%s", node.name.c_str());
+            ImGui::SliderFloat3("Scale", &node.scale[0], 0.0f, 2.0f);
+            ImGui::SliderFloat3("Translation", &node.translation[0], -10.0f, 10.0f);
+            ImGui::SliderFloat("Rotation Angle", &node.rotation[0], -3.14f, 3.14f);
+            ImGui::SliderFloat3("Local Position", &node.rotation[1], -3.14f, 3.14f);
+            ImGui::Spacing();
+        }
+
         ImGui::ColorEdit3("Background color", &ctx.backgroundColor[0]);
 
-        ImGui::Text("Model transformation");
-        ImGui::SliderFloat("Scale", &ctx.modelScaleValue, 0.0f, 2.0f);
-        ImGui::SliderFloat3("Translation", &ctx.modelTranslationValue[0], -10.0f, 10.0f);
-        ImGui::SliderFloat("Rotation Angle", &ctx.modelAngleValue, -3.14f, 3.14f);
-        ImGui::SliderFloat3("Rotation Axis", &ctx.modelAxisValue[0], -1.0f, 1.0f);
+        //ImGui::Text("Model transformation");
+        //ImGui::SliderFloat("Scale", &ctx.modelScaleValue, 0.0f, 2.0f);
+        //ImGui::SliderFloat3("Translation", &ctx.modelTranslationValue[0], -10.0f, 10.0f);
+        //ImGui::SliderFloat("Rotation Angle", &ctx.modelAngleValue, -3.14f, 3.14f);
+        //ImGui::SliderFloat3("Rotation Axis", &ctx.modelAxisValue[0], -1.0f, 1.0f);
+        ImGui::Text("Model lighting");
+        ImGui::ColorEdit3("Diffuse color", &ctx.diffuseColor[0]);
+        ImGui::SliderFloat3("Light position", &ctx.lightPosition[0], -10.0f, 10.0f);
 
         ImGui::End();
 
