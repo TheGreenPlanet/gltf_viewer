@@ -3,11 +3,27 @@
 
 // Uniform constants
 uniform float u_time;
+
+// Uniform model matrices
 uniform mat4 u_view;
 uniform mat4 u_projection;
 uniform mat4 u_model;
+
+// Uniform world colors
+uniform vec3 u_lightColor;
 uniform vec3 u_diffuseColor; // The diffuse surface color of the model
 uniform vec3 u_lightPosition; // The position of your light source
+uniform vec3 u_ambientColor;
+uniform vec3 u_specularColor;
+uniform float u_specularPower;
+
+
+
+uniform int u_diffuseEnabled;
+uniform int u_specularEnabled;
+uniform int u_lightEnabled;
+uniform int u_ambientEnabled;
+uniform bool u_showNormals;
 
 // Vertex inputs (attributes from vertex buffers)
 layout(location = 0) in vec4 a_position;
@@ -36,7 +52,21 @@ void main()
 
     // Calculate the diffuse (Lambertian) reflection term
     float diffuse = max(0.0, dot(N, L));
+    
+    // Ambient and specular (part 4)
+    vec3 ambient = u_ambientColor;
+    vec3 viewDir = normalize(-positionEye);
+    vec3 H = normalize(L + viewDir);
+    float specular = pow(dot(N,H), u_specularPower);
+    
+
+    float distance = dot(positionEye, positionEye);
 
     // Multiply the diffuse reflection term with the base surface color
-    v_color = diffuse * u_diffuseColor;
+    v_color =   u_ambientEnabled * u_ambientColor + 
+                u_diffuseEnabled * diffuse * u_diffuseColor * u_lightColor * u_lightEnabled / distance +
+                u_specularEnabled * specular * u_specularColor * u_lightColor * u_lightEnabled / distance;
+    if (u_showNormals) {
+        v_color = 0.5 * a_normal + 0.5;
+    }
 }

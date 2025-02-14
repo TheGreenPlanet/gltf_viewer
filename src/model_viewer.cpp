@@ -21,6 +21,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <cmath>
 
 // Struct for our application context
 struct Context {
@@ -36,13 +37,23 @@ struct Context {
     std::string gltfFilename = "armadillo.gltf";
     glm::vec3 backgroundColor = glm::vec3(0.0f, 0.0f, 0.0f);
     // Add more variables here...
-    float modelScaleValue = 1.0f;
-    glm::vec3 modelTranslationValue = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::vec3 modelAxisValue = glm::vec3(0.0f, 0.0f, 0.0f);
-    float modelAngleValue = 0.0f;
 
+    // These are node specific variables, but we just put them here for now
     glm::vec3 diffuseColor = glm::vec3(0.5f, 0.5f, 0.5f);
+    glm::vec3 specularColor = glm::vec3(0.5f,0.5f,0.5f);
+    float specularPower = 1.0f;
+    glm::vec3 ambientColor = glm::vec3(0.5f,0.5f,0.5f);
+    glm::vec3 lightColor = glm::vec3(0.5f,0.5f,0.5f);
+
     glm::vec3 lightPosition = glm::vec3(1.0f, 1.0f, 1.0f);
+    float zoom_factor = 0.5f;
+
+    bool diffuseEnabled = true;
+    bool specularEnabled = true;
+    bool lightEnabled = true;
+    bool ambientEnabled = true;
+    bool showNormals = false;
+    bool showOrtho = false;
 };
 
 // Returns the absolute path to the src/shader directory
@@ -87,7 +98,17 @@ void draw_scene(Context &ctx)
     glUniform1f(glGetUniformLocation(ctx.program, "u_time"), ctx.elapsedTime);
     
     // ...
-    
+    glUniform1i(glGetUniformLocation(ctx.program, "u_diffuseEnabled"), ctx.diffuseEnabled);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_specularEnabled"), ctx.specularEnabled);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_lightEnabled"), ctx.lightEnabled);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_ambientEnabled"), ctx.ambientEnabled);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_showNormals"), ctx.showNormals);
+
+    glm::mat4 view = glm::mat4(ctx.trackball.orient);
+    view = view * glm::lookAt(glm::vec3(2.0f, 0.0f, 0.0f), glm::vec3(0.0f), glm::vec3(0,0,1));
+    glm::mat4 projection = ctx.showOrtho
+        ? glm::ortho(0.0f, (float)ctx.width, 0.0f, (float)ctx.height, -1.0f, 1.0f) // Orthographic
+        : glm::perspective(glm::radians(65.0f*ctx.zoom_factor), (float)ctx.width / (float)ctx.height, 0.1f, 100.0f); // Perspective
 
 
 
@@ -97,9 +118,6 @@ void draw_scene(Context &ctx)
         const gltf::Drawable &drawable = ctx.drawables[node.mesh];
 
         // Define per-object uniforms
-        glm::mat4 view = glm::mat4(ctx.trackball.orient);
-        view = view * glm::lookAt(glm::vec3(2.0f, 0.0f, 0.0f), glm::vec3(0.0f), glm::vec3(0,0,1));
-        glm::mat4 projection =  glm::perspective(glm::radians(65.0f), (float)ctx.width / (float)ctx.height, 0.1f, 100.0f);
         glm::mat4 model = glm::mat4(1.0f);
 
         // Apply model transformation
@@ -114,6 +132,11 @@ void draw_scene(Context &ctx)
 
         glUniform3fv(glGetUniformLocation(ctx.program, "u_diffuseColor"), 1, &ctx.diffuseColor[0]);
         glUniform3fv(glGetUniformLocation(ctx.program, "u_lightPosition"), 1, &ctx.lightPosition[0]);
+        
+        glUniform3fv(glGetUniformLocation(ctx.program, "u_ambientColor"), 1, &ctx.ambientColor[0]);
+        glUniform3fv(glGetUniformLocation(ctx.program, "u_specularColor"), 1, &ctx.specularColor[0]);
+        glUniform3fv(glGetUniformLocation(ctx.program, "u_lightColor"), 1, &ctx.lightColor[0]);
+        glUniform1f(glGetUniformLocation(ctx.program, "u_specularPower"), ctx.specularPower);
 
         
 
@@ -198,6 +221,10 @@ void scroll_callback(GLFWwindow *window, double x, double y)
 {
     // Forward event to ImGui
     ImGui_ImplGlfw_ScrollCallback(window, x, y);
+
+    Context *ctx = static_cast<Context *>(glfwGetWindowUserPointer(window));
+    ctx->zoom_factor -= y * 0.1f;
+
     if (ImGui::GetIO().WantCaptureMouse) return;
 }
 
@@ -267,8 +294,8 @@ int main(int argc, char *argv[])
             ImGui::Text("%s", node.name.c_str());
             ImGui::SliderFloat3("Scale", &node.scale[0], 0.0f, 2.0f);
             ImGui::SliderFloat3("Translation", &node.translation[0], -10.0f, 10.0f);
-            ImGui::SliderFloat("Rotation Angle", &node.rotation[0], -3.14f, 3.14f);
-            ImGui::SliderFloat3("Local Position", &node.rotation[1], -3.14f, 3.14f);
+            ImGui::SliderFloat("Rotation Angle", &node.rotation[0], -6.28f, 6.28f);
+            ImGui::SliderFloat3("Local Position", &node.rotation[1], 0.f, 1.f);
             ImGui::Spacing();
         }
 
@@ -279,9 +306,23 @@ int main(int argc, char *argv[])
         //ImGui::SliderFloat3("Translation", &ctx.modelTranslationValue[0], -10.0f, 10.0f);
         //ImGui::SliderFloat("Rotation Angle", &ctx.modelAngleValue, -3.14f, 3.14f);
         //ImGui::SliderFloat3("Rotation Axis", &ctx.modelAxisValue[0], -1.0f, 1.0f);
-        ImGui::Text("Model lighting");
+        ImGui::Text("Material");
         ImGui::ColorEdit3("Diffuse color", &ctx.diffuseColor[0]);
+        ImGui::Checkbox("Diffuse enabled", &ctx.diffuseEnabled);
+        ImGui::ColorEdit3("Specular color", &ctx.specularColor[0]);
+        ImGui::SliderFloat("Specular power", &ctx.specularPower, 0.0f, 100.0f);
+        ImGui::Checkbox("Specular enabled", &ctx.specularEnabled);
+
+        ImGui::Text("Lighting");
+        ImGui::ColorEdit3("Light color", &ctx.lightColor[0]);
         ImGui::SliderFloat3("Light position", &ctx.lightPosition[0], -10.0f, 10.0f);
+        ImGui::Checkbox("Light enabled", &ctx.lightEnabled);
+        ImGui::ColorEdit3("Ambient color", &ctx.ambientColor[0]);
+        ImGui::Checkbox("Ambient enabled", &ctx.ambientEnabled);
+
+        ImGui::Text("Misc");
+        ImGui::Checkbox("Show normals", &ctx.showNormals);
+        ImGui::Checkbox("Show ortho", &ctx.showOrtho);
 
         ImGui::End();
 
