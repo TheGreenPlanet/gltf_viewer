@@ -26,6 +26,9 @@ struct Node {
     std::vector<int> children;
     glm::vec3 translation;
     glm::quat rotation;
+    float rotationX;
+    float rotationY;
+    float rotationZ;
     glm::vec3 scale;
     glm::mat4 matrix;
     bool hasMatrix;

@@ -103,12 +103,12 @@ void draw_scene(Context &ctx)
     glUniform1i(glGetUniformLocation(ctx.program, "u_lightEnabled"), ctx.lightEnabled);
     glUniform1i(glGetUniformLocation(ctx.program, "u_ambientEnabled"), ctx.ambientEnabled);
     glUniform1i(glGetUniformLocation(ctx.program, "u_showNormals"), ctx.showNormals);
-
+    float aspect = (float)ctx.width / (float)ctx.height;
     glm::mat4 view = glm::mat4(ctx.trackball.orient);
     view = view * glm::lookAt(glm::vec3(2.0f, 0.0f, 0.0f), glm::vec3(0.0f), glm::vec3(0,0,1));
     glm::mat4 projection = ctx.showOrtho
-        ? glm::ortho(0.0f, (float)ctx.width, 0.0f, (float)ctx.height, -1.0f, 1.0f) // Orthographic
-        : glm::perspective(glm::radians(65.0f*ctx.zoom_factor), (float)ctx.width / (float)ctx.height, 0.1f, 100.0f); // Perspective
+        ? glm::ortho(-1.0f *aspect, 1.0f * aspect, -1.0f, 1.0f, -10.0f, 10.0f) // Orthographic
+        : glm::perspective(glm::radians(65.0f*ctx.zoom_factor), aspect, 0.1f, 100.0f); // Perspective
 
 
 
@@ -123,7 +123,9 @@ void draw_scene(Context &ctx)
         // Apply model transformation
         model = glm::scale(model, glm::vec3(node.scale));
         model = glm::translate(model, node.translation);
-        model = glm::rotate(model, node.rotation.w, glm::vec3(node.rotation.x, node.rotation.y, node.rotation.z));
+        model = glm::rotate(model, node.rotationX, glm::vec3(1,0,0));
+        model = glm::rotate(model, node.rotationY, glm::vec3(0,1,0));
+        model = glm::rotate(model, node.rotationZ, glm::vec3(0,0,1));
             
         // Draw object
         glUniformMatrix4fv(glGetUniformLocation(ctx.program, "u_view"), 1, GL_FALSE, &view[0][0]);
@@ -294,8 +296,9 @@ int main(int argc, char *argv[])
             ImGui::Text("%s", node.name.c_str());
             ImGui::SliderFloat3("Scale", &node.scale[0], 0.0f, 2.0f);
             ImGui::SliderFloat3("Translation", &node.translation[0], -10.0f, 10.0f);
-            ImGui::SliderFloat("Rotation Angle", &node.rotation[0], -6.28f, 6.28f);
-            ImGui::SliderFloat3("Local Position", &node.rotation[1], 0.f, 1.f);
+            ImGui::SliderFloat("Rotation X", &node.rotationX, -6.28f, 6.28f);
+            ImGui::SliderFloat("Rotation Y", &node.rotationY, -6.28f, 6.28f);
+            ImGui::SliderFloat("Rotation Z", &node.rotationZ, -6.28f, 6.28f);
             ImGui::Spacing();
         }
 
@@ -323,6 +326,7 @@ int main(int argc, char *argv[])
         ImGui::Text("Misc");
         ImGui::Checkbox("Show normals", &ctx.showNormals);
         ImGui::Checkbox("Show ortho", &ctx.showOrtho);
+        ImGui::Text("Fovy: %f %f", 65.0f*ctx.zoom_factor, glm::radians(65.0f*ctx.zoom_factor));
 
         ImGui::End();
 

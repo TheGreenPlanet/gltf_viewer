@@ -48,7 +48,8 @@ void main()
     vec3 N = normalize(mat3(mv) * a_normal);
 
     // Calculate the view-space light direction
-    vec3 L = normalize(u_lightPosition - positionEye);
+    vec4 lightPositionView = mv * vec4(u_lightPosition, 1);
+    vec3 L = normalize(vec3(lightPositionView) - positionEye);
 
     // Calculate the diffuse (Lambertian) reflection term
     float diffuse = max(0.0, dot(N, L));
@@ -60,7 +61,7 @@ void main()
     float specular = pow(dot(N,H), u_specularPower);
     
 
-    float distance = dot(positionEye, positionEye);
+    float distance = dot(positionEye, positionEye) * 0.5;
 
     // Multiply the diffuse reflection term with the base surface color
     v_color =   u_ambientEnabled * u_ambientColor + 
