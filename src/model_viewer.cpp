@@ -54,6 +54,7 @@ struct Context {
     bool ambientEnabled = true;
     bool showNormals = false;
     bool showOrtho = false;
+    bool gammeCorrection = true;
 };
 
 // Returns the absolute path to the src/shader directory
@@ -103,6 +104,8 @@ void draw_scene(Context &ctx)
     glUniform1i(glGetUniformLocation(ctx.program, "u_lightEnabled"), ctx.lightEnabled);
     glUniform1i(glGetUniformLocation(ctx.program, "u_ambientEnabled"), ctx.ambientEnabled);
     glUniform1i(glGetUniformLocation(ctx.program, "u_showNormals"), ctx.showNormals);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_gammaCorrection"), ctx.gammeCorrection);
+
     float aspect = (float)ctx.width / (float)ctx.height;
     glm::mat4 view = glm::mat4(ctx.trackball.orient);
     view = view * glm::lookAt(glm::vec3(2.0f, 0.0f, 0.0f), glm::vec3(0.0f), glm::vec3(0,0,1));
@@ -326,6 +329,7 @@ int main(int argc, char *argv[])
         ImGui::Text("Misc");
         ImGui::Checkbox("Show normals", &ctx.showNormals);
         ImGui::Checkbox("Show ortho", &ctx.showOrtho);
+        ImGui::Checkbox("Gamma correction", &ctx.gammeCorrection);
         ImGui::Text("Fovy: %f %f", 65.0f*ctx.zoom_factor, glm::radians(65.0f*ctx.zoom_factor));
 
         ImGui::End();
