@@ -7,6 +7,7 @@ uniform vec3 u_diffuseColor; // The diffuse surface color of the model
 uniform vec3 u_ambientColor;
 uniform vec3 u_specularColor;
 uniform float u_specularPower;
+uniform samplerCube u_cubemap;
 
 uniform int u_diffuseEnabled;
 uniform int u_specularEnabled;
@@ -14,12 +15,13 @@ uniform int u_lightEnabled;
 uniform int u_ambientEnabled;
 uniform bool u_showNormals;
 uniform bool u_gammaCorrection;
+uniform bool u_environmentMapping;
 
 
 // Fragment shader inputs
-in vec3 L;
-in vec3 N;
-in vec3 V;
+in vec3 L;      // View-space light vector
+in vec3 N;      // View-space normal
+in vec3 V;      // View vector (direction)
 in vec3 v_normal;
 in float v_distance;
 
@@ -50,5 +52,12 @@ void main()
     if (u_gammaCorrection) {
         color = pow(color, vec3(1 / 2.2));
     } 
+    
+    // Cube map
+    if (u_environmentMapping) {
+        vec3 R = reflect(-V, N);
+        color = texture(u_cubemap, R).rgb;
+    }
+
     frag_color = vec4(color,1.0);
 }

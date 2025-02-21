@@ -23,6 +23,11 @@
 #include <iostream>
 #include <cmath>
 
+#include <array>
+
+
+constexpr uint32_t CUBEMAP_MAX_DIRS = 5;
+constexpr uint32_t CUBEMAP_PREFILTERED_MAX_NUMBER = 8;
 // Struct for our application context
 struct Context {
     int width = 1920;
@@ -33,8 +38,9 @@ struct Context {
     cg::Trackball trackball;
     GLuint program;
     GLuint emptyVAO;
+    GLuint texture;
     float elapsedTime;
-    std::string gltfFilename = "armadillo.gltf";
+    std::string gltfFilename = "teapot.gltf";
     glm::vec3 backgroundColor = glm::vec3(0.0f, 0.0f, 0.0f);
     // Add more variables here...
 
@@ -55,7 +61,39 @@ struct Context {
     bool showNormals = false;
     bool showOrtho = false;
     bool gammeCorrection = true;
+    bool environmentMapping = false;
+
+    // std::vector<string> textureIDs = {}; std::vector([])
+    uint32_t activeCubemapLevel = 0;
+    uint32_t cubemapTextureDir = 0;
+    std::array<std::array<GLuint, CUBEMAP_PREFILTERED_MAX_NUMBER>, CUBEMAP_MAX_DIRS> cubemapTextures = {0};
+    // std::vector<std::string> cubemapDirs = {"debug", "Forrest", "LarnacaCastle", "reference", "RomeChurch"};
+    //const char* cubemapDirs = "debug\0Forrest\0LarnaCastle\0reference\0RomeChurch\0";
+    const char *cubemapDirs[CUBEMAP_MAX_DIRS] = {"debug", "Forrest", "LarnacaCastle", "reference", "RomeChurch"};
+    const char *roughnessLevels[CUBEMAP_PREFILTERED_MAX_NUMBER] = {"2048", "512", "128", "32", "8", "2", "0.5", "0.125"};
 };
+
+/*
+GLint cubemap_romechurch = cg::load_cubemap(cubemap_dir() + "/RomeChurch/");
+GLint cubemap_forrest = cg::load_cubemap(cubemap_dir() + "/Forrest/");
+
+ctx.cubemap_romechurch = ...
+ctx.loaded_textures.push_back(cubemap_romechurch);
+
+
+*/
+
+
+// Returns the absolute path to the cubemap directory
+std::string cubemap_dir()
+{
+    std::string rootDir = cg::get_env_var("MODEL_VIEWER_ROOT");
+    if (rootDir.empty()) {
+        std::cout << "Error: MODEL_VIEWER_ROOT is not set." << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+    return rootDir + "/assets/cubemaps/";
+}
 
 // Returns the absolute path to the src/shader directory
 std::string shader_dir(void)
@@ -79,9 +117,23 @@ std::string gltf_dir(void)
     return rootDir + "/assets/gltf/";
 }
 
+void store_cubemaps(Context &ctx) {
+
+    
+
+    for (uint32_t i = 0; i < CUBEMAP_MAX_DIRS; i++) {
+        for (uint32_t j = 0; j < CUBEMAP_PREFILTERED_MAX_NUMBER; j++) {
+            std::cout << "Loading cubemap: " << cubemap_dir() + ctx.cubemapDirs[i] + "/prefiltered/" + ctx.roughnessLevels[j] + "/" << std::endl;
+            ctx.cubemapTextures[i][j] = cg::load_cubemap(cubemap_dir() + ctx.cubemapDirs[i] + "/prefiltered/" + ctx.roughnessLevels[j] + "/");
+        }
+    }
+}
+
 void do_initialization(Context &ctx)
 {
     ctx.program = cg::load_shader_program(shader_dir() + "mesh.vert", shader_dir() + "mesh.frag");
+    store_cubemaps(ctx);
+    // ctx.texture = cg::load_cubemap(cubemap_dir() + "/RomeChurch/");
 
     gltf::load_gltf_asset(ctx.gltfFilename, gltf_dir(), ctx.asset);
     gltf::create_drawables_from_gltf_asset(ctx.drawables, ctx.asset);
@@ -94,6 +146,11 @@ void draw_scene(Context &ctx)
 
     // Set render state
     glEnable(GL_DEPTH_TEST);  // Enable Z-buffering
+    
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP,ctx.cubemapTextures[ctx.cubemapTextureDir][ctx.activeCubemapLevel]);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_cubemap"), 0);
+    
 
     // Define per-scene uniforms
     glUniform1f(glGetUniformLocation(ctx.program, "u_time"), ctx.elapsedTime);
@@ -105,6 +162,7 @@ void draw_scene(Context &ctx)
     glUniform1i(glGetUniformLocation(ctx.program, "u_ambientEnabled"), ctx.ambientEnabled);
     glUniform1i(glGetUniformLocation(ctx.program, "u_showNormals"), ctx.showNormals);
     glUniform1i(glGetUniformLocation(ctx.program, "u_gammaCorrection"), ctx.gammeCorrection);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_environmentMapping"), ctx.environmentMapping);
 
     float aspect = (float)ctx.width / (float)ctx.height;
     glm::mat4 view = glm::mat4(ctx.trackball.orient);
@@ -330,7 +388,19 @@ int main(int argc, char *argv[])
         ImGui::Checkbox("Show normals", &ctx.showNormals);
         ImGui::Checkbox("Show ortho", &ctx.showOrtho);
         ImGui::Checkbox("Gamma correction", &ctx.gammeCorrection);
+        ImGui::Checkbox("Environment mapping", &ctx.environmentMapping);
         ImGui::Text("Fovy: %f %f", 65.0f*ctx.zoom_factor, glm::radians(65.0f*ctx.zoom_factor));
+
+        ImGui::Text("Cubemap");
+        ImGui::Combo("Cubemap", (int*)&ctx.cubemapTextureDir, ctx.cubemapDirs, CUBEMAP_MAX_DIRS);
+        ImGui::Combo("Cubemap Roughness", (int*)&ctx.activeCubemapLevel, ctx.roughnessLevels, CUBEMAP_PREFILTERED_MAX_NUMBER);
+
+
+        // .heap -> text2 -> "asdfasdf"
+
+        // .data section
+        // 0x1338 -> "asdfasdf"
+        
 
         ImGui::End();
 
