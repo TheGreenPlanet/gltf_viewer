@@ -1,0 +1,3 @@
+[submodule "instr/cg_assignment3"]
+	path = instr/cg_assignment3
+	url = https://github.com/cg-uu/cg_assignment3.git
