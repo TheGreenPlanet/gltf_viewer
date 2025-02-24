@@ -40,7 +40,7 @@ struct Context {
     GLuint emptyVAO;
     GLuint texture;
     float elapsedTime;
-    std::string gltfFilename = "teapot.gltf";
+    std::string gltfFilename = "lpshead.gltf";
     glm::vec3 backgroundColor = glm::vec3(0.0f, 0.0f, 0.0f);
     // Add more variables here...
 
@@ -62,6 +62,7 @@ struct Context {
     bool showOrtho = false;
     bool gammeCorrection = true;
     bool environmentMapping = false;
+    bool showTexcoords = false;
 
     // std::vector<string> textureIDs = {}; std::vector([])
     uint32_t activeCubemapLevel = 0;
@@ -71,6 +72,7 @@ struct Context {
     //const char* cubemapDirs = "debug\0Forrest\0LarnaCastle\0reference\0RomeChurch\0";
     const char *cubemapDirs[CUBEMAP_MAX_DIRS] = {"debug", "Forrest", "LarnacaCastle", "reference", "RomeChurch"};
     const char *roughnessLevels[CUBEMAP_PREFILTERED_MAX_NUMBER] = {"2048", "512", "128", "32", "8", "2", "0.5", "0.125"};
+    gltf::TextureList textures;
 };
 
 /*
@@ -106,7 +108,7 @@ std::string shader_dir(void)
     return rootDir + "/src/shaders/";
 }
 
-// Returns the absolute path to the assets/gltf directory
+// Returns the absolute path to the assets/§tf directory
 std::string gltf_dir(void)
 {
     std::string rootDir = cg::get_env_var("MODEL_VIEWER_ROOT");
@@ -137,6 +139,7 @@ void do_initialization(Context &ctx)
 
     gltf::load_gltf_asset(ctx.gltfFilename, gltf_dir(), ctx.asset);
     gltf::create_drawables_from_gltf_asset(ctx.drawables, ctx.asset);
+    gltf::create_textures_from_gltf_asset(ctx.textures, ctx.asset);
 }
 
 void draw_scene(Context &ctx)
@@ -163,6 +166,7 @@ void draw_scene(Context &ctx)
     glUniform1i(glGetUniformLocation(ctx.program, "u_showNormals"), ctx.showNormals);
     glUniform1i(glGetUniformLocation(ctx.program, "u_gammaCorrection"), ctx.gammeCorrection);
     glUniform1i(glGetUniformLocation(ctx.program, "u_environmentMapping"), ctx.environmentMapping);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_showTexcoords"), ctx.showTexcoords);
 
     float aspect = (float)ctx.width / (float)ctx.height;
     glm::mat4 view = glm::mat4(ctx.trackball.orient);
@@ -201,7 +205,26 @@ void draw_scene(Context &ctx)
         glUniform3fv(glGetUniformLocation(ctx.program, "u_lightColor"), 1, &ctx.lightColor[0]);
         glUniform1f(glGetUniformLocation(ctx.program, "u_specularPower"), ctx.specularPower);
 
-        
+        // Assignment 3 part 3, material textures.
+        const gltf::Mesh &mesh = ctx.asset.meshes[node.mesh];
+        if (mesh.primitives[0].hasMaterial) {
+            const gltf::Primitive &primitive = mesh.primitives[0];
+            const gltf::Material &material = ctx.asset.materials[primitive.material];
+            const gltf::PBRMetallicRoughness &pbr = material.pbrMetallicRoughness;
+
+            // Define material textures and uniforms
+            if (pbr.hasBaseColorTexture) {
+                GLuint texture_id = ctx.textures[pbr.baseColorTexture.index];
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, texture_id);
+                glUniform1i(glGetUniformLocation(ctx.program, "u_texture1"), 1);
+                glUniform3fv(glGetUniformLocation(ctx.program, "u_materialDiffuseColor"), 1, &pbr.baseColorFactor[0]);
+                // Bind texture and define uniforms...
+            } else {
+                // Need to handle this case as well, by telling
+                // the shader that no texture is available
+            }
+        }                
 
         glBindVertexArray(drawable.vao);
         glDrawElements(GL_TRIANGLES, drawable.indexCount, drawable.indexType,
@@ -389,6 +412,7 @@ int main(int argc, char *argv[])
         ImGui::Checkbox("Show ortho", &ctx.showOrtho);
         ImGui::Checkbox("Gamma correction", &ctx.gammeCorrection);
         ImGui::Checkbox("Environment mapping", &ctx.environmentMapping);
+        ImGui::Checkbox("Visualize Texture Coordinates", &ctx.showTexcoords);
         ImGui::Text("Fovy: %f %f", 65.0f*ctx.zoom_factor, glm::radians(65.0f*ctx.zoom_factor));
 
         ImGui::Text("Cubemap");
