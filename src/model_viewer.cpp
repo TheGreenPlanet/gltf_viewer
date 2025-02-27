@@ -60,31 +60,20 @@ struct Context {
     bool ambientEnabled = true;
     bool showNormals = false;
     bool showOrtho = false;
-    bool gammeCorrection = true;
+    bool gammaCorrection = true;
     bool environmentMapping = false;
     bool showTexcoords = false;
+    bool bumpMappingEnabled = false;
+    bool showMaterial = false;
 
     // std::vector<string> textureIDs = {}; std::vector([])
     uint32_t activeCubemapLevel = 0;
     uint32_t cubemapTextureDir = 0;
     std::array<std::array<GLuint, CUBEMAP_PREFILTERED_MAX_NUMBER>, CUBEMAP_MAX_DIRS> cubemapTextures = {0};
-    // std::vector<std::string> cubemapDirs = {"debug", "Forrest", "LarnacaCastle", "reference", "RomeChurch"};
-    //const char* cubemapDirs = "debug\0Forrest\0LarnaCastle\0reference\0RomeChurch\0";
     const char *cubemapDirs[CUBEMAP_MAX_DIRS] = {"debug", "Forrest", "LarnacaCastle", "reference", "RomeChurch"};
     const char *roughnessLevels[CUBEMAP_PREFILTERED_MAX_NUMBER] = {"2048", "512", "128", "32", "8", "2", "0.5", "0.125"};
     gltf::TextureList textures;
 };
-
-/*
-GLint cubemap_romechurch = cg::load_cubemap(cubemap_dir() + "/RomeChurch/");
-GLint cubemap_forrest = cg::load_cubemap(cubemap_dir() + "/Forrest/");
-
-ctx.cubemap_romechurch = ...
-ctx.loaded_textures.push_back(cubemap_romechurch);
-
-
-*/
-
 
 // Returns the absolute path to the cubemap directory
 std::string cubemap_dir()
@@ -164,15 +153,17 @@ void draw_scene(Context &ctx)
     glUniform1i(glGetUniformLocation(ctx.program, "u_lightEnabled"), ctx.lightEnabled);
     glUniform1i(glGetUniformLocation(ctx.program, "u_ambientEnabled"), ctx.ambientEnabled);
     glUniform1i(glGetUniformLocation(ctx.program, "u_showNormals"), ctx.showNormals);
-    glUniform1i(glGetUniformLocation(ctx.program, "u_gammaCorrection"), ctx.gammeCorrection);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_gammaCorrection"), ctx.gammaCorrection);
     glUniform1i(glGetUniformLocation(ctx.program, "u_environmentMapping"), ctx.environmentMapping);
     glUniform1i(glGetUniformLocation(ctx.program, "u_showTexcoords"), ctx.showTexcoords);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_bumpMappingEnabled"), ctx.bumpMappingEnabled);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_showMaterial"), ctx.showMaterial);
 
     float aspect = (float)ctx.width / (float)ctx.height;
     glm::mat4 view = glm::mat4(ctx.trackball.orient);
     view = view * glm::lookAt(glm::vec3(2.0f, 0.0f, 0.0f), glm::vec3(0.0f), glm::vec3(0,0,1));
     glm::mat4 projection = ctx.showOrtho
-        ? glm::ortho(-1.0f *aspect, 1.0f * aspect, -1.0f, 1.0f, -10.0f, 10.0f) // Orthographic
+        ? glm::ortho(-1.0f * aspect, 1.0f * aspect, -1.0f, 1.0f, -10.0f, 10.0f) // Orthographic
         : glm::perspective(glm::radians(65.0f*ctx.zoom_factor), aspect, 0.1f, 100.0f); // Perspective
 
 
@@ -206,23 +197,43 @@ void draw_scene(Context &ctx)
         glUniform1f(glGetUniformLocation(ctx.program, "u_specularPower"), ctx.specularPower);
 
         // Assignment 3 part 3, material textures.
-        const gltf::Mesh &mesh = ctx.asset.meshes[node.mesh];
+        const gltf::Mesh &mesh = ctx.asset.meshes[node.mesh];        
         if (mesh.primitives[0].hasMaterial) {
             const gltf::Primitive &primitive = mesh.primitives[0];
             const gltf::Material &material = ctx.asset.materials[primitive.material];
             const gltf::PBRMetallicRoughness &pbr = material.pbrMetallicRoughness;
-
             // Define material textures and uniforms
             if (pbr.hasBaseColorTexture) {
+                // Bind texture and define uniforms...
                 GLuint texture_id = ctx.textures[pbr.baseColorTexture.index];
                 glActiveTexture(GL_TEXTURE1);
                 glBindTexture(GL_TEXTURE_2D, texture_id);
                 glUniform1i(glGetUniformLocation(ctx.program, "u_texture1"), 1);
+                
                 glUniform3fv(glGetUniformLocation(ctx.program, "u_materialDiffuseColor"), 1, &pbr.baseColorFactor[0]);
-                // Bind texture and define uniforms...
+                glUniform1i(glGetUniformLocation(ctx.program, "u_hasTexture"), GL_TRUE);
+
             } else {
+                
                 // Need to handle this case as well, by telling
                 // the shader that no texture is available
+                glUniform1i(glGetUniformLocation(ctx.program, "u_hasTexture"), GL_FALSE);
+                
+            }
+
+            if (material.hasNormalTexture) {
+                GLuint texture_id = ctx.textures[material.normalTexture.index];
+                glActiveTexture(GL_TEXTURE2);
+                glBindTexture(GL_TEXTURE_2D, texture_id);
+                glUniform1i(glGetUniformLocation(ctx.program, "u_bumpMap1"), 2);
+                glUniform1i(glGetUniformLocation(ctx.program, "u_hasBumpMap"), GL_TRUE);
+
+            }
+            else {
+                // Need to handle this case as well, by telling
+                // the shader that no bumpmap texture is available
+                glUniform1i(glGetUniformLocation(ctx.program, "u_hasBumpMap"), GL_FALSE);
+
             }
         }                
 
@@ -410,9 +421,11 @@ int main(int argc, char *argv[])
         ImGui::Text("Misc");
         ImGui::Checkbox("Show normals", &ctx.showNormals);
         ImGui::Checkbox("Show ortho", &ctx.showOrtho);
-        ImGui::Checkbox("Gamma correction", &ctx.gammeCorrection);
+        ImGui::Checkbox("Gamma correction", &ctx.gammaCorrection);
         ImGui::Checkbox("Environment mapping", &ctx.environmentMapping);
         ImGui::Checkbox("Visualize Texture Coordinates", &ctx.showTexcoords);
+        ImGui::Checkbox("Bump mapping", &ctx.bumpMappingEnabled);
+        ImGui::Checkbox("Show Material", &ctx.showMaterial);
         ImGui::Text("Fovy: %f %f", 65.0f*ctx.zoom_factor, glm::radians(65.0f*ctx.zoom_factor));
 
         ImGui::Text("Cubemap");
