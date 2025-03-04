@@ -28,6 +28,18 @@
 
 constexpr uint32_t CUBEMAP_MAX_DIRS = 5;
 constexpr uint32_t CUBEMAP_PREFILTERED_MAX_NUMBER = 8;
+
+
+// Struct for representing a shadow casting point light
+struct ShadowCastingLight {
+    glm::vec3 position;      // Light source position
+    glm::mat4 shadowMatrix;  // Camera matrix for shadowmap
+    GLuint shadowmap;        // Depth texture
+    GLuint shadowFBO;        // Depth framebuffer
+    float shadowBias;        // Bias for depth comparison
+};
+
+
 // Struct for our application context
 struct Context {
     int width = 1920;
@@ -60,12 +72,13 @@ struct Context {
     bool ambientEnabled = true;
     bool showNormals = false;
     bool showOrtho = false;
-    bool gammaCorrection = true;
+    bool gammaCorrection = false;
     bool environmentMapping = false;
     bool showTexcoords = false;
     bool bumpMappingEnabled = false;
     bool showMaterial = false;
-
+    bool depthVisualization = false; // Shadow map debugging
+    //bool showShadowmap = true;
     // std::vector<string> textureIDs = {}; std::vector([])
     uint32_t activeCubemapLevel = 0;
     uint32_t cubemapTextureDir = 0;
@@ -73,7 +86,61 @@ struct Context {
     const char *cubemapDirs[CUBEMAP_MAX_DIRS] = {"debug", "Forrest", "LarnacaCastle", "reference", "RomeChurch"};
     const char *roughnessLevels[CUBEMAP_PREFILTERED_MAX_NUMBER] = {"2048", "512", "128", "32", "8", "2", "0.5", "0.125"};
     gltf::TextureList textures;
+
+    // Shadow mapping attributes
+    ShadowCastingLight light;
+    GLuint shadowProgram;
+    bool showShadowmap = false;
 };
+
+// Update the shadowmap and shadow matrix for a light source
+void update_shadowmap(Context &ctx, ShadowCastingLight &light, GLuint shadowFBO)
+{
+    // Set up rendering to shadowmap framebuffer
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadowFBO);
+    if (shadowFBO) glViewport(0, 0, 512, 512);  // TODO Set viewport to shadowmap size
+    glClear(GL_DEPTH_BUFFER_BIT);               // Clear depth values to 1.0
+
+    // Set up pipeline
+    glUseProgram(ctx.shadowProgram);
+    glEnable(GL_DEPTH_TEST);  // Enable Z-buffering
+
+    // TODO Define view and projection matrices for the shadowmap camera. The
+    // view matrix should be a lookAt-matrix computed from the light source
+    // position, and the projection matrix should be a frustum that covers the
+    // parts of the scene that shall recieve shadows.
+    glm::mat4 view = glm::mat4(1.0f);
+    glm::mat4 proj = glm::mat4(1.0f);
+    glUniformMatrix4fv(glGetUniformLocation(ctx.shadowProgram, "u_view"), 1, GL_FALSE, &view[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(ctx.shadowProgram, "u_proj"), 1, GL_FALSE, &proj[0][0]);
+
+    // Store updated shadow matrix for use in draw_scene()
+    light.shadowMatrix = proj * view;
+
+    // Draw scene
+    for (unsigned i = 0; i < ctx.asset.nodes.size(); ++i) {
+        const gltf::Node &node = ctx.asset.nodes[i];
+        const gltf::Drawable &drawable = ctx.drawables[node.mesh];
+
+        // TODO Define the model matrix for the drawable
+        glm::mat4 model = glm::mat4(1.0f);
+        glUniformMatrix4fv(glGetUniformLocation(ctx.shadowProgram, "u_model"), 1, GL_FALSE, &model[0][0]);
+
+        // Draw object
+        glBindVertexArray(drawable.vao);
+        glDrawElements(GL_TRIANGLES, drawable.indexCount, drawable.indexType,
+                       (GLvoid *)(intptr_t)drawable.indexByteOffset);
+        glBindVertexArray(0);
+    }
+
+    // Clean up
+    cg::reset_gl_render_state();
+    glUseProgram(0);
+    glViewport(0, 0, ctx.width, ctx.height);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+}
+
+
 
 // Returns the absolute path to the cubemap directory
 std::string cubemap_dir()
@@ -125,6 +192,17 @@ void do_initialization(Context &ctx)
     ctx.program = cg::load_shader_program(shader_dir() + "mesh.vert", shader_dir() + "mesh.frag");
     store_cubemaps(ctx);
     // ctx.texture = cg::load_cubemap(cubemap_dir() + "/RomeChurch/");
+
+    
+    ctx.shadowProgram =
+        cg::load_shader_program(shader_dir() + "shadow.vert", shader_dir() + "shadow.frag");
+
+    ctx.light.shadowmap = cg::create_depth_texture(512, 512);
+    ctx.light.shadowFBO = cg::create_depth_framebuffer(ctx.light.shadowmap);
+    ctx.light.position = ctx.lightPosition;
+    ctx.light.shadowBias = 0.f;
+    ctx.light.shadowMatrix = glm::mat4(1.0f);
+    
 
     gltf::load_gltf_asset(ctx.gltfFilename, gltf_dir(), ctx.asset);
     gltf::create_drawables_from_gltf_asset(ctx.drawables, ctx.asset);
@@ -258,7 +336,16 @@ void do_rendering(Context &ctx)
     glClearColor(ctx.backgroundColor.r, ctx.backgroundColor.g, ctx.backgroundColor.b, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    
+    update_shadowmap(ctx, ctx.light, ctx.light.shadowFBO);
     draw_scene(ctx);
+
+    if (ctx.depthVisualization) {
+        // Draw shadowmap on default screen framebuffer
+        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT); 
+        update_shadowmap(ctx, ctx.light, 0);
+    }
 }
 
 void reload_shaders(Context *ctx)
@@ -417,17 +504,21 @@ int main(int argc, char *argv[])
         ImGui::Checkbox("Light enabled", &ctx.lightEnabled);
         ImGui::ColorEdit3("Ambient color", &ctx.ambientColor[0]);
         ImGui::Checkbox("Ambient enabled", &ctx.ambientEnabled);
-
+        ImGui::Checkbox("Show Shadowmap", &ctx.showShadowmap);
+        
         ImGui::Text("Misc");
-        ImGui::Checkbox("Show normals", &ctx.showNormals);
-        ImGui::Checkbox("Show ortho", &ctx.showOrtho);
         ImGui::Checkbox("Gamma correction", &ctx.gammaCorrection);
         ImGui::Checkbox("Environment mapping", &ctx.environmentMapping);
         ImGui::Checkbox("Visualize Texture Coordinates", &ctx.showTexcoords);
         ImGui::Checkbox("Bump mapping", &ctx.bumpMappingEnabled);
         ImGui::Checkbox("Show Material", &ctx.showMaterial);
         ImGui::Text("Fovy: %f %f", 65.0f*ctx.zoom_factor, glm::radians(65.0f*ctx.zoom_factor));
-
+        
+        ImGui::Text("Debug");
+        ImGui::Checkbox("Show normals", &ctx.showNormals);
+        ImGui::Checkbox("Show ortho", &ctx.showOrtho);
+        ImGui::Checkbox("Depth visualization (shadow map debug)", &ctx.depthVisualization);
+        
         ImGui::Text("Cubemap");
         ImGui::Combo("Cubemap", (int*)&ctx.cubemapTextureDir, ctx.cubemapDirs, CUBEMAP_MAX_DIRS);
         ImGui::Combo("Cubemap Roughness", (int*)&ctx.activeCubemapLevel, ctx.roughnessLevels, CUBEMAP_PREFILTERED_MAX_NUMBER);
