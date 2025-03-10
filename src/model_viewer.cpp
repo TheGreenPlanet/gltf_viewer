@@ -52,7 +52,7 @@ struct Context {
     GLuint emptyVAO;
     GLuint texture;
     float elapsedTime;
-    std::string gltfFilename = "lpshead.gltf";
+    std::string gltfFilename = "gargo.gltf";
     glm::vec3 backgroundColor = glm::vec3(0.0f, 0.0f, 0.0f);
     // Add more variables here...
 
@@ -109,13 +109,15 @@ void update_shadowmap(Context &ctx, ShadowCastingLight &light, GLuint shadowFBO)
     // view matrix should be a lookAt-matrix computed from the light source
     // position, and the projection matrix should be a frustum that covers the
     // parts of the scene that shall recieve shadows.
-    glm::mat4 view = glm::mat4(1.0f);
-    glm::mat4 proj = glm::mat4(1.0f);
-    glUniformMatrix4fv(glGetUniformLocation(ctx.shadowProgram, "u_view"), 1, GL_FALSE, &view[0][0]);
-    glUniformMatrix4fv(glGetUniformLocation(ctx.shadowProgram, "u_proj"), 1, GL_FALSE, &proj[0][0]);
+    //glm::mat4 shadowView = glm::mat4(ctx.trackball.orient);
+    glm::mat4 shadowView = glm::lookAt(ctx.lightPosition, glm::vec3(0.0f), glm::vec3(0,0,1));
+    float aspect = (float)ctx.width / (float)ctx.height;
+    glm::mat4 shadowProj = glm::perspective(glm::radians(90.f), aspect, 0.1f, 10000.0f);
+    glUniformMatrix4fv(glGetUniformLocation(ctx.shadowProgram, "u_view"), 1, GL_FALSE, &shadowView[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(ctx.shadowProgram, "u_proj"), 1, GL_FALSE, &shadowProj[0][0]);
 
     // Store updated shadow matrix for use in draw_scene()
-    light.shadowMatrix = proj * view;
+    light.shadowMatrix = shadowProj * shadowView;
 
     // Draw scene
     for (unsigned i = 0; i < ctx.asset.nodes.size(); ++i) {
@@ -124,6 +126,14 @@ void update_shadowmap(Context &ctx, ShadowCastingLight &light, GLuint shadowFBO)
 
         // TODO Define the model matrix for the drawable
         glm::mat4 model = glm::mat4(1.0f);
+
+        // Apply node transformations
+        model = glm::scale(model, glm::vec3(node.scale));
+        model = glm::translate(model, node.translation);
+        model = glm::rotate(model, node.rotationX, glm::vec3(1,0,0));
+        model = glm::rotate(model, node.rotationY, glm::vec3(0,1,0));
+        model = glm::rotate(model, node.rotationZ, glm::vec3(0,0,1));
+
         glUniformMatrix4fv(glGetUniformLocation(ctx.shadowProgram, "u_model"), 1, GL_FALSE, &model[0][0]);
 
         // Draw object
@@ -200,7 +210,7 @@ void do_initialization(Context &ctx)
     ctx.light.shadowmap = cg::create_depth_texture(512, 512);
     ctx.light.shadowFBO = cg::create_depth_framebuffer(ctx.light.shadowmap);
     ctx.light.position = ctx.lightPosition;
-    ctx.light.shadowBias = 0.f;
+    ctx.light.shadowBias = 0.01f;
     ctx.light.shadowMatrix = glm::mat4(1.0f);
     
 
@@ -236,6 +246,7 @@ void draw_scene(Context &ctx)
     glUniform1i(glGetUniformLocation(ctx.program, "u_showTexcoords"), ctx.showTexcoords);
     glUniform1i(glGetUniformLocation(ctx.program, "u_bumpMappingEnabled"), ctx.bumpMappingEnabled);
     glUniform1i(glGetUniformLocation(ctx.program, "u_showMaterial"), ctx.showMaterial);
+    glUniform1f(glGetUniformLocation(ctx.program, "u_shadowBias"), ctx.light.shadowBias);
 
     float aspect = (float)ctx.width / (float)ctx.height;
     glm::mat4 view = glm::mat4(ctx.trackball.orient);
@@ -244,7 +255,14 @@ void draw_scene(Context &ctx)
         ? glm::ortho(-1.0f * aspect, 1.0f * aspect, -1.0f, 1.0f, -10.0f, 10.0f) // Orthographic
         : glm::perspective(glm::radians(65.0f*ctx.zoom_factor), aspect, 0.1f, 100.0f); // Perspective
 
+    glm::mat4 shadowFromView = ctx.light.shadowMatrix * glm::inverse(view);
+    // Assignment 3 part 4, shadow mapping
+    glUniformMatrix4fv(glGetUniformLocation(ctx.program, "u_shadowFromView"), 1, GL_FALSE, &shadowFromView[0][0]);
 
+    // ASsignemnt 3 part 4, shadow map
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, ctx.light.shadowmap);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_shadowMap"), 3);
 
     // Draw scene
     for (unsigned i = 0; i < ctx.asset.nodes.size(); ++i) {
@@ -273,6 +291,7 @@ void draw_scene(Context &ctx)
         glUniform3fv(glGetUniformLocation(ctx.program, "u_specularColor"), 1, &ctx.specularColor[0]);
         glUniform3fv(glGetUniformLocation(ctx.program, "u_lightColor"), 1, &ctx.lightColor[0]);
         glUniform1f(glGetUniformLocation(ctx.program, "u_specularPower"), ctx.specularPower);
+
 
         // Assignment 3 part 3, material textures.
         const gltf::Mesh &mesh = ctx.asset.meshes[node.mesh];        
@@ -313,8 +332,10 @@ void draw_scene(Context &ctx)
                 glUniform1i(glGetUniformLocation(ctx.program, "u_hasBumpMap"), GL_FALSE);
 
             }
-        }                
+        }    
+                    
 
+        
         glBindVertexArray(drawable.vao);
         glDrawElements(GL_TRIANGLES, drawable.indexCount, drawable.indexType,
                        (GLvoid *)(intptr_t)drawable.indexByteOffset);
@@ -505,7 +526,8 @@ int main(int argc, char *argv[])
         ImGui::ColorEdit3("Ambient color", &ctx.ambientColor[0]);
         ImGui::Checkbox("Ambient enabled", &ctx.ambientEnabled);
         ImGui::Checkbox("Show Shadowmap", &ctx.showShadowmap);
-        
+        ImGui::SliderFloat("Bias (shadow map)", &ctx.light.shadowBias, 0.0f, 1.0f);
+
         ImGui::Text("Misc");
         ImGui::Checkbox("Gamma correction", &ctx.gammaCorrection);
         ImGui::Checkbox("Environment mapping", &ctx.environmentMapping);

@@ -12,10 +12,16 @@ uniform samplerCube u_cubemap;
 uniform sampler2D u_texture1;
 uniform sampler2D u_bumpMap1;
 
+uniform sampler2D u_shadowMap; // the depth texture (shadowmap)
+uniform mat4 u_shadowFromView; // transforms main view-space -> shadow clip-space
+
+
+
 uniform int u_diffuseEnabled;
 uniform int u_specularEnabled;
 uniform int u_lightEnabled;
 uniform int u_ambientEnabled;
+uniform float u_shadowMapBias;
 uniform bool u_showNormals;
 uniform bool u_gammaCorrection;
 uniform bool u_environmentMapping;
@@ -55,6 +61,21 @@ mat3 tangent_space(vec3 eye, vec2 texcoord, vec3 normal)
     return mat3(T, B, N);
 }
 
+float shadowmap_visibility(sampler2D shadowmap, vec4 shadowPos, float bias)
+{
+    vec2 delta = vec2(0.5) / textureSize(shadowmap, 0).xy;
+    vec2 texcoord = (shadowPos.xy / shadowPos.w) * 0.5 + 0.5;
+    float depth = (shadowPos.z / shadowPos.w) * 0.5 + 0.5;
+    
+    // Sample the shadowmap and compare texels with (depth - bias) to
+    // return a visibility value in range [0, 1]. If you take more
+    // samples (using delta to offset the texture coordinate), the
+    // returned value should be the average of all comparisons.
+    float texel = texture(shadowmap, texcoord).r;
+    float visibility = float(texel > depth - bias);
+    return visibility;
+}
+
 void main()
 {    
     vec3 N2 = N;
@@ -82,16 +103,24 @@ void main()
         objectColor = texture(u_texture1, v_texcoord).rgb;
     }
 
-    // Multiply the diffuse reflection term with the base surface color
-    vec3 ambientPlusDiffuse = u_ambientEnabled * u_ambientColor + 
-                u_diffuseEnabled * diffuse * (u_materialDiffuseColor * u_diffuseColor) * u_lightColor * 
-                u_lightEnabled / v_distance;
+    float bias = 0.01f;
+    float visibility = shadowmap_visibility(u_shadowMap, u_shadowFromView * vec4(V, 1.0), bias);
 
+    // Multiply the diffuse reflection term with the base surface color
+    vec3 ambientColor = u_ambientEnabled * u_ambientColor;
+    
+    vec3 diffuseColor = u_diffuseEnabled * diffuse * (u_materialDiffuseColor * u_diffuseColor) * u_lightColor * 
+                u_lightEnabled / v_distance;
+    
     vec3 specularColor = (u_specularPower + 8.0) / 8.0 * specular * u_specularColor * u_lightColor * 
                 u_lightEnabled * u_specularEnabled / v_distance;
 
-    vec3 phongColor = ambientPlusDiffuse * objectColor + specularColor;
+    // Shadow mapping
+    diffuseColor *= visibility;
+    specularColor *= visibility;
 
+    vec3 ambientPlusDiffuse = ambientColor + diffuseColor;
+    vec3 phongColor = ambientPlusDiffuse * objectColor + specularColor;
 
     if (u_showNormals) {
         phongColor = 0.5 * v_normal + 0.5;
