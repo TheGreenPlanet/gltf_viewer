@@ -90,7 +90,7 @@ struct Context {
     // Shadow mapping attributes
     ShadowCastingLight light;
     GLuint shadowProgram;
-    bool enableShadowmap = false;
+    bool enableShadowmap = true;
 
 };
 
@@ -236,7 +236,7 @@ void draw_scene(Context &ctx)
     // Define per-scene uniforms
     glUniform1f(glGetUniformLocation(ctx.program, "u_time"), ctx.elapsedTime);
     
-    // ...
+    // flags
     glUniform1i(glGetUniformLocation(ctx.program, "u_diffuseEnabled"), ctx.diffuseEnabled);
     glUniform1i(glGetUniformLocation(ctx.program, "u_specularEnabled"), ctx.specularEnabled);
     glUniform1i(glGetUniformLocation(ctx.program, "u_lightEnabled"), ctx.lightEnabled);
@@ -248,7 +248,7 @@ void draw_scene(Context &ctx)
     glUniform1i(glGetUniformLocation(ctx.program, "u_bumpMappingEnabled"), ctx.bumpMappingEnabled);
     glUniform1i(glGetUniformLocation(ctx.program, "u_showMaterial"), ctx.showMaterial);
     glUniform1f(glGetUniformLocation(ctx.program, "u_shadowBias"), ctx.light.shadowBias);
-    //glUniform1f(glGetUniformLocation(ctx.program, "u_enableShadowmap"), ctx.enableShadowmap);
+    glUniform1f(glGetUniformLocation(ctx.program, "u_enableShadowmap"), ctx.enableShadowmap);
 
     float aspect = (float)ctx.width / (float)ctx.height;
     glm::mat4 view = glm::mat4(ctx.trackball.orient);
@@ -527,7 +527,7 @@ int main(int argc, char *argv[])
         ImGui::Checkbox("Light enabled", &ctx.lightEnabled);
         ImGui::ColorEdit3("Ambient color", &ctx.ambientColor[0]);
         ImGui::Checkbox("Ambient enabled", &ctx.ambientEnabled);
-        //ImGui::Checkbox("Enable Shadow Map", &ctx.enableShadowmap);
+        ImGui::Checkbox("Enable Shadow Map", &ctx.enableShadowmap);
         ImGui::SliderFloat("Bias (shadow Map)", &ctx.light.shadowBias, 0.0f, 1.0f);
         
         ImGui::Text("Misc");

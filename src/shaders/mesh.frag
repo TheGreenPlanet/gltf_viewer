@@ -30,7 +30,7 @@ uniform bool u_bumpMappingEnabled;
 uniform bool u_hasBumpMap;
 uniform bool u_showMaterial;
 uniform bool u_hasTexture;
-//uniform bool u_enableShadowmap;
+uniform bool u_enableShadowmap;
 
 // Fragment shader inputs
 in vec3 L;      // View-space light vector
@@ -117,10 +117,10 @@ void main()
 
     // Shadow mapping
 
-    //if (u_enableShadowmap) {
-    diffuseColor *= visibility;
-    specularColor *= visibility;
-    //}
+    if (u_enableShadowmap) {
+        diffuseColor *= visibility;
+        specularColor *= visibility;
+    }
 
     vec3 ambientPlusDiffuse = ambientColor + diffuseColor;
     vec3 phongColor = ambientPlusDiffuse * objectColor + specularColor;
