@@ -63,7 +63,7 @@ struct Context {
     glm::vec3 ambientColor = glm::vec3(0.5f,0.5f,0.5f);
     glm::vec3 lightColor = glm::vec3(0.5f,0.5f,0.5f);
 
-    glm::vec3 lightPosition = glm::vec3(1.0f, 1.0f, 1.0f);
+    glm::vec3 lightPosition = glm::vec3(0.0f, 0.0f, 4.0f);
     float zoom_factor = 0.5f;
 
     bool diffuseEnabled = true;
@@ -90,7 +90,8 @@ struct Context {
     // Shadow mapping attributes
     ShadowCastingLight light;
     GLuint shadowProgram;
-    bool showShadowmap = false;
+    bool enableShadowmap = false;
+
 };
 
 // Update the shadowmap and shadow matrix for a light source
@@ -111,8 +112,8 @@ void update_shadowmap(Context &ctx, ShadowCastingLight &light, GLuint shadowFBO)
     // parts of the scene that shall recieve shadows.
     //glm::mat4 shadowView = glm::mat4(ctx.trackball.orient);
     glm::mat4 shadowView = glm::lookAt(ctx.lightPosition, glm::vec3(0.0f), glm::vec3(0,0,1));
-    float aspect = (float)ctx.width / (float)ctx.height;
-    glm::mat4 shadowProj = glm::perspective(glm::radians(90.f), aspect, 0.1f, 10000.0f);
+    // float aspect = (float)ctx.width / (float)ctx.height;
+    glm::mat4 shadowProj = glm::perspective(glm::radians(45.f), 1.0f, 1.0f, 50.0f);
     glUniformMatrix4fv(glGetUniformLocation(ctx.shadowProgram, "u_view"), 1, GL_FALSE, &shadowView[0][0]);
     glUniformMatrix4fv(glGetUniformLocation(ctx.shadowProgram, "u_proj"), 1, GL_FALSE, &shadowProj[0][0]);
 
@@ -247,6 +248,7 @@ void draw_scene(Context &ctx)
     glUniform1i(glGetUniformLocation(ctx.program, "u_bumpMappingEnabled"), ctx.bumpMappingEnabled);
     glUniform1i(glGetUniformLocation(ctx.program, "u_showMaterial"), ctx.showMaterial);
     glUniform1f(glGetUniformLocation(ctx.program, "u_shadowBias"), ctx.light.shadowBias);
+    //glUniform1f(glGetUniformLocation(ctx.program, "u_enableShadowmap"), ctx.enableShadowmap);
 
     float aspect = (float)ctx.width / (float)ctx.height;
     glm::mat4 view = glm::mat4(ctx.trackball.orient);
@@ -525,9 +527,9 @@ int main(int argc, char *argv[])
         ImGui::Checkbox("Light enabled", &ctx.lightEnabled);
         ImGui::ColorEdit3("Ambient color", &ctx.ambientColor[0]);
         ImGui::Checkbox("Ambient enabled", &ctx.ambientEnabled);
-        ImGui::Checkbox("Show Shadowmap", &ctx.showShadowmap);
-        ImGui::SliderFloat("Bias (shadow map)", &ctx.light.shadowBias, 0.0f, 1.0f);
-
+        //ImGui::Checkbox("Enable Shadow Map", &ctx.enableShadowmap);
+        ImGui::SliderFloat("Bias (shadow Map)", &ctx.light.shadowBias, 0.0f, 1.0f);
+        
         ImGui::Text("Misc");
         ImGui::Checkbox("Gamma correction", &ctx.gammaCorrection);
         ImGui::Checkbox("Environment mapping", &ctx.environmentMapping);
@@ -544,12 +546,6 @@ int main(int argc, char *argv[])
         ImGui::Text("Cubemap");
         ImGui::Combo("Cubemap", (int*)&ctx.cubemapTextureDir, ctx.cubemapDirs, CUBEMAP_MAX_DIRS);
         ImGui::Combo("Cubemap Roughness", (int*)&ctx.activeCubemapLevel, ctx.roughnessLevels, CUBEMAP_PREFILTERED_MAX_NUMBER);
-
-
-        // .heap -> text2 -> "asdfasdf"
-
-        // .data section
-        // 0x1338 -> "asdfasdf"
         
 
         ImGui::End();

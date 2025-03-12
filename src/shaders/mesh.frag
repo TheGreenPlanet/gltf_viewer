@@ -30,6 +30,7 @@ uniform bool u_bumpMappingEnabled;
 uniform bool u_hasBumpMap;
 uniform bool u_showMaterial;
 uniform bool u_hasTexture;
+//uniform bool u_enableShadowmap;
 
 // Fragment shader inputs
 in vec3 L;      // View-space light vector
@@ -79,7 +80,7 @@ float shadowmap_visibility(sampler2D shadowmap, vec4 shadowPos, float bias)
 void main()
 {    
     vec3 N2 = N;
-
+    
     if (u_bumpMappingEnabled && u_hasBumpMap) {
         mat3 TBN = tangent_space(V, v_texcoord, N);
         vec3 normal_tangent = texture(u_bumpMap1, v_texcoord).rgb * 2.0 - 1.0;
@@ -102,9 +103,8 @@ void main()
     if (u_showMaterial && u_hasTexture) {
         objectColor = texture(u_texture1, v_texcoord).rgb;
     }
-
-    float bias = 0.01f;
-    float visibility = shadowmap_visibility(u_shadowMap, u_shadowFromView * vec4(V, 1.0), bias);
+    
+    float visibility = shadowmap_visibility(u_shadowMap, u_shadowFromView * vec4(V, 1.0), u_shadowMapBias);
 
     // Multiply the diffuse reflection term with the base surface color
     vec3 ambientColor = u_ambientEnabled * u_ambientColor;
@@ -116,15 +116,19 @@ void main()
                 u_lightEnabled * u_specularEnabled / v_distance;
 
     // Shadow mapping
+
+    //if (u_enableShadowmap) {
     diffuseColor *= visibility;
     specularColor *= visibility;
+    //}
 
     vec3 ambientPlusDiffuse = ambientColor + diffuseColor;
     vec3 phongColor = ambientPlusDiffuse * objectColor + specularColor;
 
     if (u_showNormals) {
         phongColor = 0.5 * v_normal + 0.5;
-    }
+    } 
+        
 
     if (u_gammaCorrection) {
         phongColor = pow(phongColor, vec3(1.0 / 2.2));
@@ -143,7 +147,6 @@ void main()
         //color = texture(u_texture1, v_texcoord).rgb;
     }
     
-
     
     frag_color = vec4(phongColor, 1.0);
 }
