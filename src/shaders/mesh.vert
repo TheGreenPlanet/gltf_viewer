@@ -27,6 +27,8 @@ out vec3 v_normal;
 out float v_distance;
 out vec2 v_texcoord;
 
+out vec3 fragPosLight;
+
 void main()
 {
     // Part 2 (Why?): Nothing changed because we're multiplying with the identity matrices
@@ -45,9 +47,17 @@ void main()
     L = normalize(vec3(lightPositionView) - positionEye);
 
     V = normalize(-positionEye);
+    fragPosLight = positionEye;
 
 
     v_distance = dot(positionEye, positionEye) * 0.5;
     v_normal = a_normal;
     v_texcoord = a_texcoord;
 }
+
+// crnPos = model * vec4(a_position, 1.0);
+// (view * proj) * crnPos
+
+
+// V = -(view * model * vec4(a_position, 1.0));
+// (view * proj * inverse(view)) * V

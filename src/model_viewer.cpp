@@ -53,7 +53,7 @@ struct Context {
     GLuint texture;
     float elapsedTime;
     std::string gltfFilename = "gargo.gltf";
-    glm::vec3 backgroundColor = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 backgroundColor = glm::vec3(1.0f, 0.5f, 0.9f);
     // Add more variables here...
 
     // These are node specific variables, but we just put them here for now
@@ -99,7 +99,7 @@ void update_shadowmap(Context &ctx, ShadowCastingLight &light, GLuint shadowFBO)
 {
     // Set up rendering to shadowmap framebuffer
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadowFBO);
-    if (shadowFBO) glViewport(0, 0, 512, 512);  // TODO Set viewport to shadowmap size
+    if (shadowFBO) glViewport(0, 0, 1024, 1024);  // TODO Set viewport to shadowmap size
     glClear(GL_DEPTH_BUFFER_BIT);               // Clear depth values to 1.0
 
     // Set up pipeline
@@ -110,9 +110,7 @@ void update_shadowmap(Context &ctx, ShadowCastingLight &light, GLuint shadowFBO)
     // view matrix should be a lookAt-matrix computed from the light source
     // position, and the projection matrix should be a frustum that covers the
     // parts of the scene that shall recieve shadows.
-    //glm::mat4 shadowView = glm::mat4(ctx.trackball.orient);
     glm::mat4 shadowView = glm::lookAt(ctx.lightPosition, glm::vec3(0.0f), glm::vec3(0,0,1));
-    // float aspect = (float)ctx.width / (float)ctx.height;
     glm::mat4 shadowProj = glm::perspective(glm::radians(45.f), 1.0f, 1.0f, 50.0f);
     glUniformMatrix4fv(glGetUniformLocation(ctx.shadowProgram, "u_view"), 1, GL_FALSE, &shadowView[0][0]);
     glUniformMatrix4fv(glGetUniformLocation(ctx.shadowProgram, "u_proj"), 1, GL_FALSE, &shadowProj[0][0]);
@@ -187,9 +185,6 @@ std::string gltf_dir(void)
 }
 
 void store_cubemaps(Context &ctx) {
-
-    
-
     for (uint32_t i = 0; i < CUBEMAP_MAX_DIRS; i++) {
         for (uint32_t j = 0; j < CUBEMAP_PREFILTERED_MAX_NUMBER; j++) {
             std::cout << "Loading cubemap: " << cubemap_dir() + ctx.cubemapDirs[i] + "/prefiltered/" + ctx.roughnessLevels[j] + "/" << std::endl;
@@ -334,6 +329,8 @@ void draw_scene(Context &ctx)
                 glUniform1i(glGetUniformLocation(ctx.program, "u_hasBumpMap"), GL_FALSE);
 
             }
+
+            
         }    
                     
 

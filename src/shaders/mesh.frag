@@ -40,6 +40,8 @@ in vec3 v_normal;
 in float v_distance;
 in vec2 v_texcoord; // interpolated texture coordinate
 
+in vec3 fragPosLight;
+
 // Fragment shader outputs
 out vec4 frag_color;
 
@@ -62,6 +64,13 @@ mat3 tangent_space(vec3 eye, vec2 texcoord, vec3 normal)
     return mat3(T, B, N);
 }
 
+// there are two different matrices
+// * M_MLP (Model, Light, Projection)
+// * M_Shadow
+// M_Shadow = T*S*M_MLP
+// where T = translation of 0.5 applied
+// and S = scaling of 0.5 applied
+// => shadowPos is expected to be M_MLP
 float shadowmap_visibility(sampler2D shadowmap, vec4 shadowPos, float bias)
 {
     vec2 delta = vec2(0.5) / textureSize(shadowmap, 0).xy;
@@ -104,7 +113,9 @@ void main()
         objectColor = texture(u_texture1, v_texcoord).rgb;
     }
     
-    float visibility = shadowmap_visibility(u_shadowMap, u_shadowFromView * vec4(V, 1.0), u_shadowMapBias);
+    // the bias has been hardcoded to 0.0 to see the shadow acne, when we get it working
+    // questionable V variable, its negative
+    float visibility = shadowmap_visibility(u_shadowMap, u_shadowFromView * vec4(V, 1.0), 0.0);
 
     // Multiply the diffuse reflection term with the base surface color
     vec3 ambientColor = u_ambientEnabled * u_ambientColor;
@@ -117,10 +128,10 @@ void main()
 
     // Shadow mapping
 
-    if (u_enableShadowmap) {
+    //if (u_enableShadowmap) {
         diffuseColor *= visibility;
         specularColor *= visibility;
-    }
+    //}
 
     vec3 ambientPlusDiffuse = ambientColor + diffuseColor;
     vec3 phongColor = ambientPlusDiffuse * objectColor + specularColor;
