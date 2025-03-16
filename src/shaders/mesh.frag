@@ -17,9 +17,9 @@ uniform mat4 u_shadowFromView; // transforms main view-space -> shadow clip-spac
 
 
 
-uniform int u_diffuseEnabled;
-uniform int u_specularEnabled;
-uniform int u_lightEnabled;
+uniform bool u_diffuseEnabled;
+uniform bool u_specularEnabled;
+uniform bool u_lightEnabled;
 uniform int u_ambientEnabled;
 uniform float u_shadowMapBias;
 uniform bool u_showNormals;
@@ -55,7 +55,7 @@ mat3 tangent_space(vec3 eye, vec2 texcoord, vec3 normal)
     vec2 delta_uv2 = dFdy(texcoord);
     
     // Compute tangent space vectors
-    vec3 N = normal;
+    vec3 N = normalize(normal);
     vec3 T = normalize(delta_pos1 * delta_uv2.y -
                         delta_pos2 * delta_uv1.y);
     vec3 B = normalize(delta_pos2 * delta_uv1.x -
@@ -64,13 +64,6 @@ mat3 tangent_space(vec3 eye, vec2 texcoord, vec3 normal)
     return mat3(T, B, N);
 }
 
-// there are two different matrices
-// * M_MLP (Model, Light, Projection)
-// * M_Shadow
-// M_Shadow = T*S*M_MLP
-// where T = translation of 0.5 applied
-// and S = scaling of 0.5 applied
-// => shadowPos is expected to be M_MLP
 float shadowmap_visibility(sampler2D shadowmap, vec4 shadowPos, float bias)
 {
     vec2 delta = vec2(0.5) / textureSize(shadowmap, 0).xy;
@@ -89,13 +82,34 @@ float shadowmap_visibility(sampler2D shadowmap, vec4 shadowPos, float bias)
 void main()
 {    
     vec3 N2 = N;
-    
+
     if (u_bumpMappingEnabled && u_hasBumpMap) {
         mat3 TBN = tangent_space(V, v_texcoord, N);
-        vec3 normal_tangent = texture(u_bumpMap1, v_texcoord).rgb * 2.0 - 1.0;
-        vec3 normal_world = normalize(TBN * normal_tangent);
+        // === FOR RGB NORMAL MAPS === //
+        //normal_tangent = texture(u_bumpMap1, v_texcoord).r * 2.0 - 1.0; 
+        // vec3 normal_world = TBN * vec3(normal_tangent;
+        //N2 = normal_world;
+
+        // === FOR GRAY BUMP MAPS === //
+        // Calculating new normals using gray-scale bump map and surrounding values (Couldn't find examples of this, so I asked ChatGPT since it was optional anyway)
+
+        // Sample height values (grayscale bump map)
+        float heightCenter = texture(u_bumpMap1, v_texcoord).r; 
+        float heightRight  = texture(u_bumpMap1, v_texcoord + vec2(0.001, 0.0)).r; 
+        float heightUp     = texture(u_bumpMap1, v_texcoord + vec2(0.0, 0.001)).r;
+
+        // Compute the slope of the height map (finite differences)
+        vec3 normal_tangent;
+        float strength = 4.0f; // Change the strength of the bump map. 
+        normal_tangent.x = (heightCenter - heightRight) * strength;  // Partial derivative in U direction
+        normal_tangent.y = (heightCenter - heightUp) * strength;     // Partial derivative in V direction
+        normal_tangent.z = 1.0;                         // Default Z component to keep it unit-length
+
+        // Normalize the normal to ensure proper shading
+        normal_tangent = normalize(normal_tangent);
         
-        N2 = normal_world;
+        vec3 normal_world = TBN * normal_tangent;
+        N2 = normalize(normal_world);
     }
 
     // Calculate the diffuse (Lambertian) reflection term
@@ -103,41 +117,44 @@ void main()
     
     // Ambient and specular (part 4)
     vec3 H = normalize(L + V);
-    float specular = pow(dot(N2,H), u_specularPower);
+    float specular = pow(max(dot(N2,H),0.0f), u_specularPower);
     
 
 
-
-    vec3 objectColor = vec3(1.0, 1.0, 1.0);
-    if (u_showMaterial && u_hasTexture) {
-        objectColor = texture(u_texture1, v_texcoord).rgb;
-    }
     
-    // the bias has been hardcoded to 0.0 to see the shadow acne, when we get it working
-    // questionable V variable, its negative
-    float visibility = shadowmap_visibility(u_shadowMap, u_shadowFromView * vec4(V, 1.0), 0.0);
+
+
+    float visibility = shadowmap_visibility(u_shadowMap, u_shadowFromView * vec4(V, 1.0), u_shadowMapBias);
 
     // Multiply the diffuse reflection term with the base surface color
     vec3 ambientColor = u_ambientEnabled * u_ambientColor;
     
-    vec3 diffuseColor = u_diffuseEnabled * diffuse * (u_materialDiffuseColor * u_diffuseColor) * u_lightColor * 
-                u_lightEnabled / v_distance;
+    vec3 diffuseColor = (u_diffuseEnabled && u_lightEnabled)
+        ? diffuse * u_diffuseColor * u_lightColor / v_distance
+        : vec3(0.0f);
     
-    vec3 specularColor = (u_specularPower + 8.0) / 8.0 * specular * u_specularColor * u_lightColor * 
-                u_lightEnabled * u_specularEnabled / v_distance;
+
+    vec3 objectColor = vec3(1.0, 1.0, 1.0);
+    if (u_showMaterial && u_hasTexture) {
+        objectColor = texture(u_texture1, v_texcoord).rgb;
+        diffuseColor *= u_materialDiffuseColor; 
+    }
+
+    vec3 specularColor = (u_specularEnabled && u_lightEnabled) 
+        ? ((u_specularPower + 8.0) / 8.0) * specular * u_specularColor * u_lightColor / v_distance
+        : vec3(0.0f);
 
     // Shadow mapping
-
-    //if (u_enableShadowmap) {
+    if (u_enableShadowmap) {
         diffuseColor *= visibility;
         specularColor *= visibility;
-    //}
+    }
 
     vec3 ambientPlusDiffuse = ambientColor + diffuseColor;
     vec3 phongColor = ambientPlusDiffuse * objectColor + specularColor;
 
     if (u_showNormals) {
-        phongColor = 0.5 * v_normal + 0.5;
+        phongColor = 0.5 * N2 + 0.5; //changed to N2 from v_normal
     } 
         
 
