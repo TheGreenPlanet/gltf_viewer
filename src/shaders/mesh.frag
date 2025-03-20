@@ -21,7 +21,7 @@ uniform bool u_diffuseEnabled;
 uniform bool u_specularEnabled;
 uniform bool u_lightEnabled;
 uniform int u_ambientEnabled;
-uniform float u_shadowMapBias;
+uniform float u_shadowBias;
 uniform bool u_showNormals;
 uniform bool u_gammaCorrection;
 uniform bool u_environmentMapping;
@@ -75,7 +75,7 @@ float shadowmap_visibility(sampler2D shadowmap, vec4 shadowPos, float bias)
     // samples (using delta to offset the texture coordinate), the
     // returned value should be the average of all comparisons.
     float texel = texture(shadowmap, texcoord).r;
-    float visibility = float(texel > depth - bias);
+    float visibility = float(texel > (depth - bias));
     return visibility;
 }
 
@@ -118,13 +118,7 @@ void main()
     // Ambient and specular (part 4)
     vec3 H = normalize(L + V);
     float specular = pow(max(dot(N2,H),0.0f), u_specularPower);
-    
 
-
-    
-
-
-    float visibility = shadowmap_visibility(u_shadowMap, u_shadowFromView * vec4(V, 1.0), u_shadowMapBias);
 
     // Multiply the diffuse reflection term with the base surface color
     vec3 ambientColor = u_ambientEnabled * u_ambientColor;
@@ -146,6 +140,7 @@ void main()
 
     // Shadow mapping
     if (u_enableShadowmap) {
+        float visibility = shadowmap_visibility(u_shadowMap, u_shadowFromView * vec4(-V, 1.0f), u_shadowBias);
         diffuseColor *= visibility;
         specularColor *= visibility;
     }
@@ -154,7 +149,7 @@ void main()
     vec3 phongColor = ambientPlusDiffuse * objectColor + specularColor;
 
     if (u_showNormals) {
-        phongColor = 0.5 * N2 + 0.5; //changed to N2 from v_normal
+        phongColor = 0.5 * v_normal + 0.5; //changed to N2 from v_normal
     } 
         
 
@@ -172,9 +167,7 @@ void main()
     // Visualize texture coordinates
     if (u_showTexcoords) {
         phongColor = vec3(v_texcoord.x, v_texcoord.y,0);
-        //color = texture(u_texture1, v_texcoord).rgb;
     }
-    
-    
+
     frag_color = vec4(phongColor, 1.0);
 }
