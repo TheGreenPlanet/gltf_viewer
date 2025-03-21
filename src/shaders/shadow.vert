@@ -18,3 +18,4 @@ void main()
 {
     gl_Position = u_proj * u_view * u_model * a_position;
 }
+// shadowFromView * (-V) = shadowProj * shadowView * inverse(view) * u_view * u_model * a_position

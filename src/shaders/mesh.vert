@@ -46,7 +46,7 @@ void main()
     vec4 lightPositionView = mv * vec4(u_lightPosition, 1);
     L = normalize(vec3(lightPositionView) - positionEye);
 
-    V = normalize(-positionEye);
+    V = -positionEye;
     fragPosLight = positionEye;
 
 

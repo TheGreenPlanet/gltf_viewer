@@ -52,7 +52,7 @@ struct Context {
     GLuint emptyVAO;
     GLuint texture;
     float elapsedTime;
-    std::string gltfFilename = "gargo.gltf";
+    std::string gltfFilename = "lpshead.gltf";
     glm::vec3 backgroundColor = glm::vec3(1.0f, 0.5f, 0.9f);
     // Add more variables here...
 
@@ -78,7 +78,6 @@ struct Context {
     bool bumpMappingEnabled = false;
     bool showMaterial = false;
     bool depthVisualization = false; // Shadow map debugging
-    //bool showShadowmap = true;
     // std::vector<string> textureIDs = {}; std::vector([])
     uint32_t activeCubemapLevel = 0;
     uint32_t cubemapTextureDir = 0;
@@ -99,7 +98,7 @@ void update_shadowmap(Context &ctx, ShadowCastingLight &light, GLuint shadowFBO)
 {
     // Set up rendering to shadowmap framebuffer
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadowFBO);
-    if (shadowFBO) glViewport(0, 0, 1024, 1024);  // TODO Set viewport to shadowmap size
+    if (shadowFBO) glViewport(0, 0, 2048, 2048);  // TODO Set viewport to shadowmap size
     glClear(GL_DEPTH_BUFFER_BIT);               // Clear depth values to 1.0
 
     // Set up pipeline
@@ -111,7 +110,7 @@ void update_shadowmap(Context &ctx, ShadowCastingLight &light, GLuint shadowFBO)
     // position, and the projection matrix should be a frustum that covers the
     // parts of the scene that shall recieve shadows.
     glm::mat4 shadowView = glm::lookAt(ctx.lightPosition, glm::vec3(0.0f), glm::vec3(0,0,1));
-    glm::mat4 shadowProj = glm::perspective(glm::radians(45.f), 1.0f, 1.0f, 50.0f);
+    glm::mat4 shadowProj = glm::perspective(glm::radians(45.f), 1.0f, 1.0f, 90.0f);
     glUniformMatrix4fv(glGetUniformLocation(ctx.shadowProgram, "u_view"), 1, GL_FALSE, &shadowView[0][0]);
     glUniformMatrix4fv(glGetUniformLocation(ctx.shadowProgram, "u_proj"), 1, GL_FALSE, &shadowProj[0][0]);
 
@@ -123,10 +122,8 @@ void update_shadowmap(Context &ctx, ShadowCastingLight &light, GLuint shadowFBO)
         const gltf::Node &node = ctx.asset.nodes[i];
         const gltf::Drawable &drawable = ctx.drawables[node.mesh];
 
-        // TODO Define the model matrix for the drawable
+        // TODO Define the model matrix for the drawable - Done?
         glm::mat4 model = glm::mat4(1.0f);
-
-        // Apply node transformations
         model = glm::scale(model, glm::vec3(node.scale));
         model = glm::translate(model, node.translation);
         model = glm::rotate(model, node.rotationX, glm::vec3(1,0,0));
@@ -197,13 +194,12 @@ void do_initialization(Context &ctx)
 {
     ctx.program = cg::load_shader_program(shader_dir() + "mesh.vert", shader_dir() + "mesh.frag");
     store_cubemaps(ctx);
-    // ctx.texture = cg::load_cubemap(cubemap_dir() + "/RomeChurch/");
 
     
     ctx.shadowProgram =
         cg::load_shader_program(shader_dir() + "shadow.vert", shader_dir() + "shadow.frag");
 
-    ctx.light.shadowmap = cg::create_depth_texture(512, 512);
+    ctx.light.shadowmap = cg::create_depth_texture(2048, 2048);
     ctx.light.shadowFBO = cg::create_depth_framebuffer(ctx.light.shadowmap);
     ctx.light.position = ctx.lightPosition;
     ctx.light.shadowBias = 0.01f;
@@ -250,7 +246,7 @@ void draw_scene(Context &ctx)
     view = view * glm::lookAt(glm::vec3(2.0f, 0.0f, 0.0f), glm::vec3(0.0f), glm::vec3(0,0,1));
     glm::mat4 projection = ctx.showOrtho
         ? glm::ortho(-1.0f * aspect, 1.0f * aspect, -1.0f, 1.0f, -10.0f, 10.0f) // Orthographic
-        : glm::perspective(glm::radians(65.0f*ctx.zoom_factor), aspect, 0.1f, 100.0f); // Perspective
+        : glm::perspective(glm::radians(65.0f*ctx.zoom_factor), aspect, 0.1f, 40.0f); // Perspective
 
     glm::mat4 shadowFromView = ctx.light.shadowMatrix * glm::inverse(view);
     // Assignment 3 part 4, shadow mapping
@@ -322,18 +318,12 @@ void draw_scene(Context &ctx)
                 glUniform1i(glGetUniformLocation(ctx.program, "u_bumpMap1"), 2);
                 glUniform1i(glGetUniformLocation(ctx.program, "u_hasBumpMap"), GL_TRUE);
 
-            }
-            else {
+            } else {
                 // Need to handle this case as well, by telling
                 // the shader that no bumpmap texture is available
                 glUniform1i(glGetUniformLocation(ctx.program, "u_hasBumpMap"), GL_FALSE);
-
             }
-
-            
         }    
-                    
-
         
         glBindVertexArray(drawable.vao);
         glDrawElements(GL_TRIANGLES, drawable.indexCount, drawable.indexType,
